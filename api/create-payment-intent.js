@@ -1,14 +1,21 @@
-const stripe = require("stripe")(process.env.STRIPE_TEST_SECRET_KEY);
+let stripe;
 
-/** @type {import('@vercel/node').VercelRequestHandler} */
+try {
+  const stripeKey = process.env.STRIPE_TEST_SECRET_KEY;
+  if (!stripeKey) throw new Error("❌ STRIPE_TEST_SECRET_KEY is missing.");
+  stripe = require("stripe")(stripeKey);
+} catch (e) {
+  console.log("❌ STRIPE INIT ERROR:", e.message);
+  module.exports = (req, res) => {
+    res.status(500).json({ error: "Stripe init failed: " + e.message });
+  };
+  return;
+}
+
 module.exports = async (req, res) => {
-  if (req.method !== "POST") {
-    return res.status(405).send("Method not allowed");
-  }
-
-  const { amount } = req.body;
-
   try {
+    const { amount } = req.body;
+
     const paymentIntent = await stripe.paymentIntents.create({
       amount,
       currency: "usd",
@@ -16,6 +23,7 @@ module.exports = async (req, res) => {
 
     res.status(200).json({ clientSecret: paymentIntent.client_secret });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.log("❌ STRIPE CREATE ERROR:", error.message);
+    res.status(500).json({ error: "PaymentIntent creation failed: " + error.message });
   }
 };
